@@ -17,6 +17,9 @@ async def on_ready():
     print('We have logged in as {0.user}'.format(client))
     MealFinder.getmeal("dinner", numEntries=10)
 
+    activity = discord.Activity(name='the cafe menu', type=discord.ActivityType.watching)
+    await client.change_presence(activity=activity)
+
 
 @client.event
 async def on_member_join(self, member):
