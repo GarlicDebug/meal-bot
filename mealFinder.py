@@ -20,7 +20,7 @@ class MealFinder:
         for meal_item in meal_items[:numEntries]:
             menuString += meal_item.text.strip() + "\n"
 
-        #print(menuString)
+        print(menuString)
 
         return menuString
  #TODO: Clean out "Upon request"
