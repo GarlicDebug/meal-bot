@@ -20,6 +20,21 @@ channelDict = {
     'brunch': 811076467764756481,
     'lunch': 811076467764756481,
     'dinner': 809190205416013876,
+    'weather': 812464306599624714,
+}
+
+cleaningDict = {
+    'Upon Request': '^ Vegan/GF option available',
+    'Build Your Own Fruit Salad Bar': 'Fruit',
+    'Whole Grain Brown Rice': 'Brown Rice',
+    'Whole Grain Brown Rice and Beans': 'Brown Rice and Beans',
+    'Build Your Own Salad Bar with Assorted Salad Dressings': 'Salad',
+    'Chef\'s Choice Beans': 'Beans',
+    'Chef\'s Choice Soup': 'Soup',
+    'Carlson Arbogast Black Beans': 'Black Beans',
+    'Carlson Arbogast White Beans': 'White Beans',
+    'Carlson Arbogast Cranberry Beans': 'Cranberry Beans',
+    'Old Fashion Rolled Oats': 'Rolled Oats',
 }
 
 client = discord.Client()
@@ -27,7 +42,7 @@ client = discord.Client()
 bot = commands.Bot("!")
 
 
-def getmeal(mealname, num_entries):
+def getmeal(mealname, num_entries, ping):
     """
     Pulls menu items from cafe website and adds them to a string for posting.
     :param mealname: string
@@ -48,13 +63,16 @@ def getmeal(mealname, num_entries):
     menu_string = "Today's " + mealname + " options are: \n\n"
 
     for meal_item in meal_items[:num_entries]:
-        menu_string += meal_item.text.strip() + "\n"
+        meal_item = meal_item.text.strip()
+        if meal_item in cleaningDict:
+            meal_item = cleaningDict[meal_item]
+        menu_string += meal_item + "\n"
 
-    menu_string = "@everyone\n\n" + menu_string
+    if ping is True:
+        menu_string = "@everyone\n\n" + menu_string
     print(menu_string)
     return menu_string
 
-# TODO: Clean out "Upon request"
 # TODO: indicate that multiples are vegan
 # TODO: Move or document helper info
 
@@ -66,10 +84,7 @@ async def timeloop():
     """
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S")
-    print("Loop Time =", current_time)
-    now = datetime.now()
 
-    current_time = now.strftime("%H:%M:%S")
     print("Meal loop time =", current_time)
 
     day_of_week = datetime.today().weekday()
@@ -109,7 +124,7 @@ async def post_food(meal):
     :return:
     """
     channel = client.get_channel(channelDict[meal])
-    food = getmeal(meal, num_entries=10)
+    food = getmeal(meal, num_entries=11, ping=True)
     await channel.send(food)
 
 
@@ -121,7 +136,7 @@ async def test_food(meal):
     :return:
     """
     channel = client.get_channel(channelDict['testing'])
-    food = getmeal(meal, num_entries=10)
+    food = getmeal(meal, num_entries=11, ping=False)
     await channel.send(food)
 
 
@@ -152,7 +167,8 @@ async def before_clock():
 async def on_ready():
     print('We have logged in as {0.user}'.format(client))
     timeloop.start()
-    await test_food("dinner")
+    # await test_food("breakfast")
+
     activity = discord.Activity(name='the cafe menu', type=discord.ActivityType.watching)
     await client.change_presence(activity=activity)
 
