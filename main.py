@@ -1,12 +1,11 @@
 import os
 import asyncio
-import datetime
 import discord
 import requests
 from bs4 import BeautifulSoup
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Discord API token is stored in un-versioned .env file for safety
 load_dotenv()
@@ -21,6 +20,7 @@ channelDict = {
     'lunch': 811076467764756481,
     'dinner': 809190205416013876,
     'weather': 812464306599624714,
+    'future': 815645103157673995,
 }
 
 cleaningDict = {
@@ -42,9 +42,13 @@ client = discord.Client()
 bot = commands.Bot("!")
 
 
-def getmeal(mealname, num_entries, ping):
+def getmeal(mealname, num_entries=11, ping=False, tomorrow=False):
     """
     Pulls menu items from cafe website and adds them to a string for posting.
+    :param tomorrow: boolean
+        Determines if the date used is tomorrow's date
+    :param ping: boolean
+        Determines if an @everyone should be included
     :param mealname: string
         Name of the meal
     :param num_entries: int
@@ -53,14 +57,23 @@ def getmeal(mealname, num_entries, ping):
         Meal entries separated by newlines.
     """
 
-    URL = 'https://andrews-university.cafebonappetit.com/cafe/terrace-cafe/'
-    page = requests.get(URL)
+    url = 'https://andrews-university.cafebonappetit.com/'
+    today = datetime.now().date()
+    tomorrow_date = today + timedelta(days=1)
+    tomorrow_url = 'https://andrews-university.cafebonappetit.com/cafe/terrace-cafe/'
+    tomorrow_url = tomorrow_url + str(tomorrow_date)
+
+    if tomorrow is True:
+        page = requests.get(tomorrow_url)
+    else:
+        page = requests.get(url)
+
     soup = BeautifulSoup(page.content, 'html.parser')
     meal = soup.find(id=mealname)
 
     meal_items = meal.find_all(class_="h4 site-panel__daypart-item-title")
 
-    menu_string = "Today's " + mealname + " options are: \n\n"
+    menu_string = ""
 
     for meal_item in meal_items[:num_entries]:
         meal_item = meal_item.text.strip()
@@ -69,7 +82,7 @@ def getmeal(mealname, num_entries, ping):
         menu_string += meal_item + "\n"
 
     if ping is True:
-        menu_string = "@everyone\n\n" + menu_string
+        menu_string = menu_string + "\n@everyone"
     print(menu_string)
     return menu_string
 
@@ -88,6 +101,9 @@ async def timeloop():
     print("Meal loop time =", current_time)
 
     day_of_week = datetime.today().weekday()
+
+    if current_time == '18:30:00':
+        await post_tomorrow_food()
 
     if day_of_week < 5:  # weekdays
         if current_time == '06:30:00':
@@ -124,8 +140,36 @@ async def post_food(meal):
     :return:
     """
     channel = client.get_channel(channelDict[meal])
-    food = getmeal(meal, num_entries=11, ping=True)
+    food = getmeal(meal, ping=True)
     await channel.send(food)
+
+
+async def post_tomorrow_food():
+    """
+    Posts the entire menu for the next day
+    :return:
+    """
+    tomorrows_day_of_week = (datetime.today().weekday() + 1) % 7
+    channel = client.get_channel(channelDict['future'])
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+    tomorrow_meal_string = 'Menu for ' + days[tomorrows_day_of_week] + ':\n'
+
+    if tomorrows_day_of_week < 5:
+        tomorrow_meal_string += '\nBreakfast:\n' + getmeal('breakfast', tomorrow=True)
+        tomorrow_meal_string += '\nLunch:\n' + getmeal('lunch', tomorrow=True)
+        tomorrow_meal_string += '\nDinner:\n' + getmeal('dinner', tomorrow=True)
+
+    if tomorrows_day_of_week == 5:
+        tomorrow_meal_string += '\nLunch:\n' + getmeal('lunch', tomorrow=True)
+
+    if tomorrows_day_of_week == 6:
+        tomorrow_meal_string += '\nBrunch:\n' + getmeal('brunch', tomorrow=True)
+        tomorrow_meal_string += '\nDinner:\n' + getmeal('dinner', tomorrow=True)
+
+    tomorrow_meal_string += '\n^^^^^^  ' + days[tomorrows_day_of_week] + '\'s menu' + '  ^^^^^^'
+
+    await channel.send(tomorrow_meal_string)
 
 
 async def test_food(meal):
@@ -136,7 +180,7 @@ async def test_food(meal):
     :return:
     """
     channel = client.get_channel(channelDict['testing'])
-    food = getmeal(meal, num_entries=11, ping=False)
+    food = getmeal(meal, ping=False, tomorrow=True)
     await channel.send(food)
 
 
@@ -167,7 +211,7 @@ async def before_clock():
 async def on_ready():
     print('We have logged in as {0.user}'.format(client))
     timeloop.start()
-    # await test_food("breakfast")
+    await post_tomorrow_food()
 
     activity = discord.Activity(name='the cafe menu', type=discord.ActivityType.watching)
     await client.change_presence(activity=activity)
